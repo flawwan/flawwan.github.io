@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    
+    <meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="chrome=1">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
+
+<meta name="description" content="A tasteful blog about Computer Security and cars. I break stuff unintentionally so you don&#39;t have to.">
+
+<meta name="twitter:card" content="summary">
+<meta name="twitter:domain" content="https://tasteofsecurity.com/">
+
+<meta name="twitter:image" content="https://tasteofsecurity.com/tn.png">
+<meta name="twitter:title" property="og:title" itemprop="title name" content="A taste of security">
+<meta name="twitter:description" property="og:description" itemprop="description" content="A tasteful blog about Computer Security and cars. I break stuff unintentionally so you don&#39;t have to.">
+<meta name="og:type" content="website">
+<meta name="og:url" content="https://tasteofsecurity.com/">
+<meta name="og:image" itemprop="image primaryImageOfPage" content="https://tasteofsecurity.com/tn.png">
+
+<link rel="shortcut icon" href="https://tasteofsecurity.com/sam.ico" id="favicon">
+<link rel="stylesheet" href="https://tasteofsecurity.com/css/style.css">
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Didact+Gothic">
+
+    
+
+    
+    
+    
+    <title>
+        
+        How I got unlimited mobile data for free
+        
+    </title>
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="section" id="title">How I got unlimited mobile data for free</div>
+
+        
+<div class="section" id="content">
+    Tue Jul 02, 2019  &#183; 2 min read
+    
+    <div class="tag-container">
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/game-hacking">
+                game hacking
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/vimla">
+                vimla
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/node-js">
+                node-js
+            </a>
+        </span>
+        
+    </div>
+    
+    <hr/>
+    <p>So my mobile operator had a campaign where you could get free mobile data just by playing a game similar to flappy birds. No catch, just play the game.</p>
+<p><img src="/images/vimla/1.png" alt="alt text" title="The game"></p>
+<p>This is how the game looked:</p>
+<p><img src="/images/vimla/2.png" alt="alt text" title="flappy bird alike game"></p>
+<p>When you lost it would display the amount of data you would get. Note, if you first scored 1GB of data, and the next game 2GB of data, you would only get 2GB. The best highscore was the only score that mattered.</p>
+<p>Playing is boring, reverse engineering is more fun.
+Fire up <a href="https://www.owasp.org/index.php/OWASP_Zed_Attack_Proxy_Project">zap</a> and play the game a couple of times.</p>
+<p>I noticed there was a websocket request to:</p>
+<pre><code>API endpoint: /existingcustomer/[phone-number]
+
+Request data:
+{
+    &quot;phone&quot;: &quot;phone-number&quot;,
+    &quot;score&quot;: 100.5 # Score = how much GB you want
+}
+</code></pre><p>Wrote a quick node.js program to let me get any highscore I wanted.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-javascript" data-lang="javascript"><span style="color:#66d9ef">var</span> <span style="color:#a6e22e">prompt</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">require</span>(<span style="color:#e6db74">&#39;prompt&#39;</span>);
+<span style="color:#66d9ef">var</span> <span style="color:#a6e22e">WebSocket</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">require</span>(<span style="color:#e6db74">&#39;ws&#39;</span>)
+
+<span style="color:#66d9ef">var</span> <span style="color:#a6e22e">ws</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">new</span> <span style="color:#a6e22e">WebSocket</span>(<span style="color:#e6db74">&#34;wss://xxx/.ws?v=5&amp;ns=vimlagame&#34;</span>);
+
+<span style="color:#a6e22e">prompt</span>.<span style="color:#a6e22e">start</span>();
+<span style="color:#a6e22e">prompt</span>.<span style="color:#a6e22e">get</span>([<span style="color:#e6db74">&#39;phonenumber&#39;</span>, <span style="color:#e6db74">&#39;score&#39;</span>], <span style="color:#66d9ef">function</span> (<span style="color:#a6e22e">err</span>, <span style="color:#a6e22e">result</span>) {
+    
+    <span style="color:#a6e22e">ws</span>.<span style="color:#a6e22e">onmessage</span> <span style="color:#f92672">=</span> <span style="color:#66d9ef">function</span> (<span style="color:#a6e22e">event</span>) {
+        <span style="color:#a6e22e">console</span>.<span style="color:#a6e22e">log</span>(<span style="color:#e6db74">&#34;[Recieved] &#34;</span> <span style="color:#f92672">+</span> <span style="color:#a6e22e">event</span>.<span style="color:#a6e22e">data</span>);
+    }
+
+    <span style="color:#66d9ef">var</span> <span style="color:#a6e22e">payload</span> <span style="color:#f92672">=</span> {  
+           <span style="color:#e6db74">&#34;t&#34;</span><span style="color:#f92672">:</span><span style="color:#e6db74">&#34;d&#34;</span>,
+           <span style="color:#e6db74">&#34;d&#34;</span><span style="color:#f92672">:</span>{  
+              <span style="color:#e6db74">&#34;r&#34;</span><span style="color:#f92672">:</span><span style="color:#ae81ff">2</span>,<span style="color:#75715e">//Retry count
+</span><span style="color:#75715e"></span>              <span style="color:#e6db74">&#34;a&#34;</span><span style="color:#f92672">:</span> <span style="color:#e6db74">&#34;p&#34;</span>,
+              <span style="color:#e6db74">&#34;b&#34;</span><span style="color:#f92672">:</span>{  
+                 <span style="color:#e6db74">&#34;p&#34;</span><span style="color:#f92672">:</span> <span style="color:#e6db74">&#34;/existingcustomer/&#34;</span> <span style="color:#f92672">+</span> <span style="color:#a6e22e">result</span>.<span style="color:#a6e22e">phonenumber</span>,
+                 <span style="color:#e6db74">&#34;d&#34;</span><span style="color:#f92672">:</span> {
+                     <span style="color:#e6db74">&#34;phone&#34;</span><span style="color:#f92672">:</span> <span style="color:#a6e22e">result</span>.<span style="color:#a6e22e">phonenumber</span>,
+                     <span style="color:#e6db74">&#34;score&#34;</span><span style="color:#f92672">:</span> parseFloat(<span style="color:#a6e22e">result</span>.<span style="color:#a6e22e">score</span>)
+                 } 
+              }
+           }
+    };
+    <span style="color:#66d9ef">var</span> <span style="color:#a6e22e">data</span> <span style="color:#f92672">=</span> <span style="color:#a6e22e">JSON</span>.<span style="color:#a6e22e">stringify</span>(<span style="color:#a6e22e">payload</span>);
+    <span style="color:#a6e22e">console</span>.<span style="color:#a6e22e">log</span>(<span style="color:#e6db74">&#34;[Sent] &#34;</span> <span style="color:#f92672">+</span> <span style="color:#a6e22e">data</span>);
+    <span style="color:#a6e22e">ws</span>.<span style="color:#a6e22e">send</span>(<span style="color:#a6e22e">data</span>);
+
+    <span style="color:#75715e">//Wait for response, then exit
+</span><span style="color:#75715e"></span>    <span style="color:#a6e22e">setTimeout</span>(<span style="color:#66d9ef">function</span>(){
+        <span style="color:#a6e22e">ws</span>.<span style="color:#a6e22e">close</span>();
+    }, <span style="color:#ae81ff">1500</span>);
+});
+</code></pre></div><h2 id="disclosure-timeline">Disclosure Timeline</h2>
+<ul>
+<li>15 February - Reported to vimla</li>
+<li>18 February - Vimla responded and told me they where aware of people cheating.</li>
+</ul>
+<p><strong>Note</strong>: I did not abuse the script! I only wrote a small PoC to the vimla team :)</p>
+
+</div>
+
+
+        
+<div class="section bottom-menu">
+    
+<hr />
+<p>
+
+
+    
+        <a href="/security">back</a>
+        
+            &#183;
+        
+    
+    <a href="https://tasteofsecurity.com/">
+        #root
+    </a>
+    &#183; 
+    
+        
+            <a href="/security/">
+                A taste of security
+            </a>
+        
+    
+    
+        
+            &#183; 
+            <a href="/how-to/">
+                Break it, fix it.
+            </a>
+        
+            &#183; 
+            <a href="/about">
+                I&#39;m Hugo
+            </a>
+        
+    
+
+</p>
+
+</div>
+
+
+        <div class="section footer">© 2023 Hugo</div>
+    </div>
+</body>
+
+</html>

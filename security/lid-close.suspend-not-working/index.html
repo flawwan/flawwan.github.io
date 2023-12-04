@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    
+    <meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="chrome=1">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
+
+<meta name="description" content="A tasteful blog about Computer Security and cars. I break stuff unintentionally so you don&#39;t have to.">
+
+<meta name="twitter:card" content="summary">
+<meta name="twitter:domain" content="https://tasteofsecurity.com/">
+
+<meta name="twitter:image" content="https://tasteofsecurity.com/tn.png">
+<meta name="twitter:title" property="og:title" itemprop="title name" content="A taste of security">
+<meta name="twitter:description" property="og:description" itemprop="description" content="A tasteful blog about Computer Security and cars. I break stuff unintentionally so you don&#39;t have to.">
+<meta name="og:type" content="website">
+<meta name="og:url" content="https://tasteofsecurity.com/">
+<meta name="og:image" itemprop="image primaryImageOfPage" content="https://tasteofsecurity.com/tn.png">
+
+<link rel="shortcut icon" href="https://tasteofsecurity.com/sam.ico" id="favicon">
+<link rel="stylesheet" href="https://tasteofsecurity.com/css/style.css">
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Didact+Gothic">
+
+    
+
+    
+    
+    
+    <title>
+        
+        Broken laptop lid (suspend)
+        
+    </title>
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="section" id="title">Broken laptop lid (suspend)</div>
+
+        
+<div class="section" id="content">
+    Sun Jan 27, 2019  &#183; 3 min read
+    
+    <div class="tag-container">
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/ubuntu">
+                ubuntu
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/suspend">
+                suspend
+            </a>
+        </span>
+        
+    </div>
+    
+    <hr/>
+    <p>So I started getting this annoying problem with my laptop. The battery was always dead when I was about to use the computer. Weird I thought. Maybe the battery had gone bad&hellip; Anyways. Plugged the charger in and moved on with my day.</p>
+<p>Later that day I shut the lid, put the laptop in my laptop case and put it in my bag. Went home, pick my laptop out of the bag and it was damn hot&hellip; The fans were on full blast.</p>
+<p>Something ain&rsquo;t right. I now realised that the suspend feature probably does not work for some reason&hellip;</p>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<p>First I asked myself a few questions that needed to be answered:</p>
+<ul>
+<li>Can I manually suspend the computer through the terminal?</li>
+<li>Does the computer detect the lid close?</li>
+</ul>
+<h3 id="manual-suspend">Manual suspend</h3>
+<pre><code>systemctl suspend
+</code></pre><p>Yes! It works&hellip;</p>
+<h3 id="lid-close-event">Lid close event</h3>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ sudo journalctl
+systemd-logind<span style="color:#f92672">[</span>1127<span style="color:#f92672">]</span>: Lid closed.
+systemd-logind<span style="color:#f92672">[</span>1127<span style="color:#f92672">]</span>: Lid opened.
+</code></pre></div><p>The laptop seem to detect the lid being closed and opened. Good&hellip; Then what is wrong with my computer&hellip;</p>
+<h3 id="the-solution-according-to-the-internet--etcsystemdlogindconf">The solution according to the internet:  /etc/systemd/logind.conf</h3>
+<p>After countless googling sessions each and every solution mentioned that you need to modify the <code>logind.conf</code>. I uncommented the mentioned lines:</p>
+<pre><code>HandleLidSwitch=suspend
+HandleLidSwitchDocked=suspend
+LidSwitchIgnoreInhibited=yes
+</code></pre><p>Restarted the laptop. Shut the lid and the computer did not go to sleep. <strong>What</strong>?!?</p>
+<h3 id="ubuntu-bug-1799038">Ubuntu bug #1799038</h3>
+<p>After googling some more I found a bug on the ubuntu bug tracker that looked extactly like mine: <a href="https://bugs.launchpad.net/ubuntu/+source/systemd/+bug/1799038">https://bugs.launchpad.net/ubuntu/+source/systemd/+bug/1799038</a>.</p>
+<p>The only thing that was different was that this bug targeted <code>Ubuntu 18.10</code>. I was using <code>Ubuntu 18.04</code>&hellip;</p>
+<h3 id="updating-to-ubuntu-1810">Updating to Ubuntu 18.10</h3>
+<p>I opted to update my machine to <code>18.10</code>.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ sudo apt update 
+$ sudo apt upgrade
+$ sudo apt dist-upgrade
+</code></pre></div><p>Set <code>Prompt=normal</code> in <code>/etc/update-manager/release-upgrades</code>.</p>
+<pre><code>$ sudo do-release-upgrade
+</code></pre><p>The 18.10 installation broke <code>i3-gaps</code>. Disabled i3-gaps for now and closed the laptop lid. Fans still on&hellip;</p>
+<h3 id="live-with-it-or-reinstall">Live with it or reinstall</h3>
+<p>I was very close to reinstalling the whole OS now&hellip;</p>
+<p>The last thing I checked was the <code>system inhibitation locks</code>. The <code>man</code> page says the following:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ man systemd-inhibit
+ Inhibitor locks may be used to block or delay system sleep and shutdown
+ requests from the user, as well as automatic idle handling of the OS.
+ This is useful to avoid system suspends <span style="color:#66d9ef">while</span> an optical disc is being
+ recorded, or similar operations that should not be interrupted.
+</code></pre></div><p>Hmm this looks promising. Maybe something is blocking the system sleep&hellip; Let&rsquo;s check:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash"> $ systemd-inhibit --list
+     Who: xfce4-power-manager <span style="color:#f92672">(</span>UID 1000/user, PID 3344/xfce4-power-man<span style="color:#f92672">)</span>
+    What: handle-power-key:handle-suspend-key:handle-hibernate-key:handle-lid-switch
+     Why: xfce4-power-manager handles these events
+    Mode: block
+
+     Who: Unattended Upgrades Shutdown <span style="color:#f92672">(</span>UID 0/root, PID 1649/unattended-upgr<span style="color:#f92672">)</span>
+    What: shutdown
+     Why: Stop ongoing upgrades or perform upgrades before shutdown
+    Mode: delay
+
+     Who: ModemManager <span style="color:#f92672">(</span>UID 0/root, PID 1248/ModemManager<span style="color:#f92672">)</span>
+    What: sleep
+     Why: ModemManager needs to reset devices
+    Mode: delay
+
+     Who: UPower <span style="color:#f92672">(</span>UID 0/root, PID 2982/upowerd<span style="color:#f92672">)</span>
+    What: sleep
+     Why: Pause device polling
+    Mode: delay
+
+     Who: NetworkManager <span style="color:#f92672">(</span>UID 0/root, PID 1100/NetworkManager<span style="color:#f92672">)</span>
+    What: sleep
+     Why: NetworkManager needs to turn off networks
+    Mode: delay
+</code></pre></div><p>Looks like <code>xfce4-power-manager</code> is <code>blocking</code> the suspend/hibernate key and the lid switch.</p>
+<p>I think I&rsquo;ve finally found the problem!!! I googled: <code>xfce4-power-manager lid close</code> and found <a href="https://askubuntu.com/questions/460101/xfce4-power-manager-suspend-not-available-for-lid-close">this</a> topic on the askubuntu forum.</p>
+<ul>
+<li>The accepted answer did not work. (sudo apt-get install pm-utils)</li>
+</ul>
+<p>Looking further down I found a answer by <code>Joce</code>.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/logind-handle-lid-switch -n -t bool -s true
+</code></pre></div><p>Restarted the computer, shut the lid. The computer went to sleep! Finally!!!</p>
+
+</div>
+
+
+        
+<div class="section bottom-menu">
+    
+<hr />
+<p>
+
+
+    
+        <a href="/security">back</a>
+        
+            &#183;
+        
+    
+    <a href="https://tasteofsecurity.com/">
+        #root
+    </a>
+    &#183; 
+    
+        
+            <a href="/security/">
+                A taste of security
+            </a>
+        
+    
+    
+        
+            &#183; 
+            <a href="/how-to/">
+                Break it, fix it.
+            </a>
+        
+            &#183; 
+            <a href="/about">
+                I&#39;m Hugo
+            </a>
+        
+    
+
+</p>
+
+</div>
+
+
+        <div class="section footer">© 2023 Hugo</div>
+    </div>
+</body>
+
+</html>

